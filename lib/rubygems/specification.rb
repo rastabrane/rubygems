@@ -39,6 +39,7 @@ require 'rubygems/version'
 require 'rubygems/requirement'
 require 'rubygems/platform'
 require "rubygems/deprecate"
+require "rubygems/syck_hack"
 
 # REFACTOR: This should be pulled out into some sort of 'all the
 # compatibility hacks' file.
@@ -625,26 +626,39 @@ class Gem::Specification
   # Do not set this, it is set automatically when the gem is packaged.
 
   attr_accessor :specification_version
+  
+  def self.purge_caches
+    dirs.reverse_each { |dir|
+      cache = "#{dir}/../specs.cache"
+      File.delete cache if File.exist? cache
+    }
+  end
 
   def self._all # :nodoc:
     unless defined?(@@all) && @@all then
-
       specs = []
-
-      self.dirs.reverse_each { |dir|
-        Dir[File.join(dir, "*.gemspec")].each { |path|
-          spec = Gem::Specification.load path.untaint
-          # #load returns nil if the spec is bad, so we just ignore
-          # it at this stage
-          specs << spec if spec
-        }
-      }
-
+      self.dirs.reverse_each { |dir| specs.push *_load_gems_from_dir(dir) }
       @@all = specs
-
       _resort!
     end
     @@all
+  end
+  
+  def self._load_gems_from_dir dir
+    cache_path = "#{dir}/../specs.cache"
+    if File.exist? cache_path
+      Marshal.load(File.read cache_path)
+    else
+      specs = []
+      Dir[File.join(dir, "*.gemspec")].each { |path|
+        spec = Gem::Specification.load path.untaint
+        # #load returns nil if the spec is bad, so we just ignore
+        # it at this stage
+        specs << spec if spec
+      }
+      File.open(cache_path, "wb") { |f| f.write Marshal.dump(specs) }
+      specs
+    end
   end
 
   def self._resort! # :nodoc:
