@@ -138,7 +138,7 @@ class Gem::Requirement
   end
 
   def hash # :nodoc:
-    requirements.hash
+    @hash ||= requirements.hash
   end
 
   def marshal_dump # :nodoc:
