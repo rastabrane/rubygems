@@ -59,15 +59,21 @@ class Gem::RequestSet
 
     specs = []
 
-    sorted_requests.each do |req|
+    threads = sorted_requests.map { |req|
       if req.installed? and
          @always_install.none? { |spec| spec == req.spec.spec } then
         yield req, nil if block_given?
         next
       end
 
-      path = req.download cache_dir
+      Thread.start do
+        [req, req.download(cache_dir)]
+      end
+    }.compact
 
+    threads.each(&:join)
+
+    threads.map(&:value).each do |req, path|
       inst = Gem::Installer.new path, options
 
       yield req, inst if block_given?
