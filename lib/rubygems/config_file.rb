@@ -25,6 +25,7 @@ require 'rubygems/user_interaction'
 # +:backtrace+:: See #backtrace
 # +:sources+:: Sets Gem::sources
 # +:verbose+:: See #verbose
+# +:threaded_downloads+:: See #threaded_downloads
 #
 # gemrc files may exist in various locations and are read and merged in
 # the following order:
@@ -41,6 +42,7 @@ class Gem::ConfigFile
   DEFAULT_BULK_THRESHOLD = 1000
   DEFAULT_VERBOSITY = true
   DEFAULT_UPDATE_SOURCES = true
+  DEFAULT_THREADED_DOWNLOADS = true
 
   ##
   # For Ruby packagers to set configuration defaults.  Set in
@@ -122,6 +124,11 @@ class Gem::ConfigFile
   attr_accessor :verbose
 
   ##
+  # True if we want to use multiple threads to download gem files
+
+  attr_accessor :threaded_downloads
+
+  ##
   # True if we want to update the SourceInfoCache every time, false otherwise
 
   attr_accessor :update_sources
@@ -189,6 +196,7 @@ class Gem::ConfigFile
     @bulk_threshold = DEFAULT_BULK_THRESHOLD
     @verbose = DEFAULT_VERBOSITY
     @update_sources = DEFAULT_UPDATE_SOURCES
+    @threaded_downloads = DEFAULT_THREADED_DOWNLOADS
 
     operating_system_config = Marshal.load Marshal.dump(OPERATING_SYSTEM_DEFAULTS)
     platform_config = Marshal.load Marshal.dump(PLATFORM_DEFAULTS)
@@ -211,6 +219,7 @@ class Gem::ConfigFile
     @path                       = @hash[:gempath]                    if @hash.key? :gempath
     @update_sources             = @hash[:update_sources]             if @hash.key? :update_sources
     @verbose                    = @hash[:verbose]                    if @hash.key? :verbose
+    @threaded_downloads         = @hash[:threaded_downloads]         if @hash.key? :threaded_downloads
     @disable_default_gem_server = @hash[:disable_default_gem_server] if @hash.key? :disable_default_gem_server
 
     @ssl_verify_mode  = @hash[:ssl_verify_mode]  if @hash.key? :ssl_verify_mode
@@ -358,11 +367,13 @@ if you believe they were disclosed to a third party.
     hash = @hash.dup
     hash.delete :update_sources
     hash.delete :verbose
+    hash.delete :threaded_downloads
     hash.delete :backtrace
     hash.delete :bulk_threshold
 
     yield :update_sources, @update_sources
     yield :verbose, @verbose
+    yield :threaded_downloads, @threaded_downloads
     yield :backtrace, @backtrace
     yield :bulk_threshold, @bulk_threshold
 
@@ -426,6 +437,12 @@ if you believe they were disclosed to a third party.
                             DEFAULT_VERBOSITY
                           end
 
+    yaml_hash[:threaded_downloads] =  if @hash.key?(:threaded_downloads)
+                                        @hash[:threaded_downloads]
+                                      else
+                                        DEFAULT_THREADED_DOWNLOADS
+                                      end
+
     keys = yaml_hash.keys.map { |key| key.to_s }
     keys << 'debug'
     re = Regexp.union(*keys)
@@ -461,6 +478,7 @@ if you believe they were disclosed to a third party.
       @backtrace == other.backtrace and
       @bulk_threshold == other.bulk_threshold and
       @verbose == other.verbose and
+      @threaded_downloads == other.threaded_downloads and
       @update_sources == other.update_sources and
       @hash == other.hash
   end

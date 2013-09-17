@@ -59,7 +59,27 @@ class Gem::RequestSet
 
     specs = []
 
-    threads = sorted_requests.map { |req|
+    download_all(sorted_requests).each do |req, path|
+      inst = Gem::Installer.new path, options
+
+      yield req, inst if block_given?
+
+      specs << inst.install
+    end
+
+    specs
+  end
+
+  def download_all(requests)
+    if Gem.configuration.threaded_downloads
+      download_all_with_threads(requests)
+    else
+      download_all_in_serial(requests)
+    end
+  end
+
+  def download_all_with_threads(requests)
+    threads = requests.map { |req|
       if req.installed? and
          @always_install.none? { |spec| spec == req.spec.spec } then
         yield req, nil if block_given?
@@ -73,15 +93,19 @@ class Gem::RequestSet
 
     threads.each(&:join)
 
-    threads.map(&:value).each do |req, path|
-      inst = Gem::Installer.new path, options
+    threads.map(&:value)
+  end
 
-      yield req, inst if block_given?
+  def download_all_in_serial(requests)
+    requests.map { |req|
+      if req.installed? and
+         @always_install.none? { |spec| spec == req.spec.spec } then
+        yield req, nil if block_given?
+        next
+      end
 
-      specs << inst.install
-    end
-
-    specs
+      [req, req.download(cache_dir)]
+    }.compact
   end
 
   def install_into dir, force = true, options = {}
