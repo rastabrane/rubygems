@@ -456,12 +456,18 @@ class Gem::StreamUI
       return SilentDownloadReporter.new(@outs, *args)
     end
 
-    case Gem.configuration.verbose
-    when nil, false
-      SilentDownloadReporter.new(@outs, *args)
-    else
-      VerboseDownloadReporter.new(@outs, *args)
-    end
+    reporter =
+      if Gem.configuration.verbose
+        if Gem.configuration.threaded_downloads
+          ThreadedDownloadReporter
+        else
+          VerboseDownloadReporter
+        end
+      else
+        SilentDownloadReporter
+      end
+
+    reporter.new(@outs, *args)
   end
 
   ##
